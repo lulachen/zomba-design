@@ -17,94 +17,117 @@ A final concern raised by the review committee concerns statistical power. You n
  1. Income
  2. Health
 
+Here we focus only on two treatments, presuming a test of the relationship between treatment assignment to the common metaketa arm and an alternative arm.
 
-# Multiple Treatments & Covariates
 
-Mult treatments + covariates.
-
-```{r multiple treatments}
+```{r setup }
 rm(list=ls())
 #install.packages("randomizr")
 library(randomizr)    # randomizr package for complete random assignment
 library(sandwich)
 library(lmtest)
+```
 
+Build up the power analysis function piece by piece
+```{r step1}
 ## Base code
-N <- 50
+N <- 45
+numblocks <- 3
+blocks <- gl(3,N/3)
 
+## For now making the conservative assumption that covariates do not systematically vary by block
 health <- sample(x=1:3, size=N, replace=TRUE)
 income <- sample(x=1:5, size=N, replace=TRUE)
 sdhealth <- sd(health)
 sdincome <- sd(income)
 
+## Also assuming that block membership does not systematically determine control outcome
 set.seed(12345)
 y0 <- health*(sdhealth) + income*(sdincome) + rnorm(n=N,mean=100,sd=2)
 y0S <- y0/sd(y0)
-summary(lm(y0S~health+income)) ## prognostic with R^2 rounghly .5
+summary(lm(y0S~health+income+blocks)) ## prognostic with R^2 rounghly .5
 
 tau <- .5
 y1 <- y0S+tau
-Z <- complete_ra(N=N)
+Z <- block_ra(block_var=blocks)
 Y <- Z*y1 + (1-Z)*y0S
-
-ate1 <- coef(lm(Y~Z))["Z"]
+ate1 <- coef(lm(Y~Z+blocks))["Z"]
 ate1
 
 healthMD <- health - mean(health)
 incomeMD <- income - mean(income)
-lm1 <- lm(Y~Z*(healthMD+incomeMD),singular.ok=FALSE)
+healthMDb <- health - ave(health,blocks)
+tapply(healthMDb,blocks,mean)
+incomeMDb <- income - ave(income,blocks)
+Yb <- Y - ave(Y,blocks)
+Zb <- Z - ave(Z,blocks)
+
+## Now doing covariance adjustment following the Gren Lab SOP (plus our own figuring)
+## Need to eventually show that this is unbiased
+lm1 <- lm(Yb~Zb*(healthMDb+incomeMDb),singular.ok=FALSE)
 results1<-coeftest(lm1, vcov = vcovHC(lm1, type = "HC2"))
+results1
 
-
-lm1a <- lm(scale(Y)~scale(Z)*(scale(healthMD)+scale(incomeMD)),singular.ok=FALSE)
+### And working on getting standardized effect estimates
+lm1a <- lm(scale(Yb)~scale(Zb)*(scale(healthMDb)+scale(incomeMDb)),singular.ok=FALSE)
 coeftest(lm1a, vcov = vcovHC(lm1a, type = "HC2"))
+
+## Checking this by hand:
 ## What is this on sd scale?
 ## https://stackoverflow.com/questions/24305271/extracting-standardized-coefficients-from-lm-in-r
-coef(lm1)["Z"] * sd(Z)/sd(Y)
+coef(lm1)["Zb"] * sd(Zb)/sd(Yb)
 
 ## Now, test H0: tau=0 when tau grows away from zero.
-Ys <- scale(Y)
-Zs <- scale(Z)
+##Ys <- scale(Y)
+##Zs <- scale(Z)
+##
+##powfn <- function(obsZ,y0,tau,cov1,cov2){
+##  # y0 is assumed y0/sd(y0)
+##  # covs are assumed mean centered
+##  y1 <- y0S+tau
+##  Z <- sample(obsZ) ## complete_ra(N=N)
+##  Y <- Z*y1 + (1-Z)*y0S
+##  Ys <- scale(Y)
+##  Zs <- scale(Z)
+##  thelm <- lm(Ys~Zs*(cov1+cov2),singular.ok=FALSE)
+##  results <- coeftest(thelm, vcov = vcovHC(thelm, type = "HC2"))
+##  ## sd(Z) is always the same (here .5)
+##  ## return(c(tau=tau,tauS=tau*sd(Zs)/sd(Ys), p=results["Zs",4]))
+##  ##return(c(tau=tau, p=results["Zs",4]))
+##  return(p=results["Zs",4])
+##}
+##
+#### test function
+##powfn(obsZ=Z,y0=y0S,tau=.5,cov1=healthMD,cov2=incomeMD)
+```
 
+Now combine all of that work into one big function (eventually delete the preceding).
 
-powfn <- function(obsZ,y0,tau,cov1,cov2){
-  # y0 is assumed y0/sd(y0)
-  # covs are assumed mean centered
-  y1 <- y0S+tau
-  Z <- sample(obsZ) ## complete_ra(N=N)
-  Y <- Z*y1 + (1-Z)*y0S
-  Ys <- scale(Y)
-  Zs <- scale(Z)
-  thelm <- lm(Ys~Zs*(cov1+cov2),singular.ok=FALSE)
-  results <- coeftest(thelm, vcov = vcovHC(thelm, type = "HC2"))
-  ## sd(Z) is always the same (here .5)
-  ## return(c(tau=tau,tauS=tau*sd(Zs)/sd(Ys), p=results["Zs",4]))
-  ##return(c(tau=tau, p=results["Zs",4]))
-  return(p=results["Zs",4])
-}
-
-## test function
-powfn(obsZ=Z,y0=y0S,tau=.5,cov1=healthMD,cov2=incomeMD)
-
-powNfn<- function(N,nsims,thetau){
-  health <- sample(x=1:3, size=N, replace=TRUE)
-  income <- sample(x=1:5, size=N, replace=TRUE)
+```{r}
+powNfn<- function(N,nsims,thetau,nblocks){
+  set.seed(12345)
+  blocks <- gl(nblocks,N/nblocks)
+  stopifnot(length(blocks)==N)
   sdhealth <- sd(health)
   sdincome <- sd(income)
-  set.seed(12345)
   y0 <- health*(sdhealth) + income*(sdincome) + rnorm(n=N,mean=100,sd=2)
   y0S <- y0/sd(y0)
-  theZ <- complete_ra(N=N)
-  healthMD <- health - mean(health)
-  incomeMD <- income - mean(income)
+  theZ <- block_ra(block_var=blocks) ## complete_ra(N=N)
+  ## healthMD <- health - mean(health)
+  ## incomeMD <- income - mean(income)
+  healthMDb <- health - ave(health,blocks)
+  incomeMDb <- income - ave(income,blocks)
 
-  powfn2 <- function(obsZ,y0,tau,cov1,cov2){
+  powfn2 <- function(obsZ,y0,tau,cov1,cov2,blocks){
     # y0 is assumed y0/sd(y0)
     # covs are assumed mean centered
     y1 <- y0S+tau
-    Z <- sample(obsZ) ## complete_ra(N=N)
+    ## Z <- sample(obsZ) ## complete_ra(N=N)
+    Z <- unsplit(lapply(split(obsZ,blocks),sample),blocks)
     Y <- Z*y1 + (1-Z)*y0S
+    Yb <- Y - ave(Y,blocks)
     Ys <- scale(Y)
+    Zb <- Z - ave(Z,blocks)
     Zs <- scale(Z)
     thelm <- lm(Ys~Zs*(cov1+cov2),singular.ok=FALSE)
     results <- coeftest(thelm, vcov = vcovHC(thelm, type = "HC2"))
@@ -114,14 +137,14 @@ powNfn<- function(N,nsims,thetau){
     return(p=results["Zs",4])
   }
 
-  theps<-replicate(nsims,powfn2(obsZ=theZ,y0=y0S,tau=thetau,cov1=healthMD,cov2=incomeMD))
+  theps<-replicate(nsims,powfn2(obsZ=theZ,y0=y0S,tau=thetau,cov1=healthMDb,cov2=incomeMDb,blocks=blocks))
   stopifnot(any(!is.na(theps)))
   return(mean(theps < .05))
 
   return(theps)
 }
 
-powNfn(N=100,nsims=10,thetau=.5)
+powNfn(N=100,nsims=10,thetau=.5,nblocks=3)
 
 
 possibleTaus <- seq(0,1,.1)
