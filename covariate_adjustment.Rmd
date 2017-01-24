@@ -1,0 +1,136 @@
+---
+title: "Covariate_power"
+author: "UofI Metaketa"
+date: "1/22/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# PA Feedback
+
+A final concern raised by the review committee concerns statistical power. You note that you can detect a neighborhood effect of .5 standard deviations; this is ordinarily considered a large effect by policy standards. One suggestion to improve power is to obtain prognostic covariates – presumably, the strongest of these would be prior administrative data. That again returns us to the question of whether you have established a working relationship with the Zomba City Council such that you could obtain the necessary covariates to effectively block the randomization.
+
+## Covariates
+ 1. Income
+ 2. Health
+
+
+# Multiple Treatments & Covariates
+
+Mult treatments + covariates.
+
+```{r multiple treatments}
+rm(list=ls())
+#install.packages("randomizr")
+library(randomizr)    # randomizr package for complete random assignment
+library(sandwich)
+library(lmtest)
+
+## Base code
+N <- 50
+
+health <- sample(x=1:3, size=N, replace=TRUE)
+income <- sample(x=1:5, size=N, replace=TRUE)
+sdhealth <- sd(health)
+sdincome <- sd(income)
+
+set.seed(12345)
+y0 <- health*(sdhealth) + income*(sdincome) + rnorm(n=N,mean=100,sd=2)
+y0S <- y0/sd(y0)
+summary(lm(y0S~health+income)) ## prognostic with R^2 rounghly .5
+
+tau <- .5
+y1 <- y0S+tau
+Z <- complete_ra(N=N)
+Y <- Z*y1 + (1-Z)*y0S
+
+ate1 <- coef(lm(Y~Z))["Z"]
+ate1
+
+healthMD <- health - mean(health)
+incomeMD <- income - mean(income)
+lm1 <- lm(Y~Z*(healthMD+incomeMD),singular.ok=FALSE)
+results1<-coeftest(lm1, vcov = vcovHC(lm1, type = "HC2"))
+
+
+lm1a <- lm(scale(Y)~scale(Z)*(scale(healthMD)+scale(incomeMD)),singular.ok=FALSE)
+coeftest(lm1a, vcov = vcovHC(lm1a, type = "HC2"))
+## What is this on sd scale?
+## https://stackoverflow.com/questions/24305271/extracting-standardized-coefficients-from-lm-in-r
+coef(lm1)["Z"] * sd(Z)/sd(Y)
+
+## Now, test H0: tau=0 when tau grows away from zero.
+Ys <- scale(Y)
+Zs <- scale(Z)
+
+
+powfn <- function(obsZ,y0,tau,cov1,cov2){
+  # y0 is assumed y0/sd(y0)
+  # covs are assumed mean centered
+  y1 <- y0S+tau
+  Z <- sample(obsZ) ## complete_ra(N=N)
+  Y <- Z*y1 + (1-Z)*y0S
+  Ys <- scale(Y)
+  Zs <- scale(Z)
+  thelm <- lm(Ys~Zs*(cov1+cov2),singular.ok=FALSE)
+  results <- coeftest(thelm, vcov = vcovHC(thelm, type = "HC2"))
+  ## sd(Z) is always the same (here .5)
+  ## return(c(tau=tau,tauS=tau*sd(Zs)/sd(Ys), p=results["Zs",4]))
+  ##return(c(tau=tau, p=results["Zs",4]))
+  return(p=results["Zs",4])
+}
+
+## test function
+powfn(obsZ=Z,y0=y0S,tau=.5,cov1=healthMD,cov2=incomeMD)
+
+powNfn<- function(N,nsims,thetau){
+  health <- sample(x=1:3, size=N, replace=TRUE)
+  income <- sample(x=1:5, size=N, replace=TRUE)
+  sdhealth <- sd(health)
+  sdincome <- sd(income)
+  set.seed(12345)
+  y0 <- health*(sdhealth) + income*(sdincome) + rnorm(n=N,mean=100,sd=2)
+  y0S <- y0/sd(y0)
+  theZ <- complete_ra(N=N)
+  healthMD <- health - mean(health)
+  incomeMD <- income - mean(income)
+
+  powfn2 <- function(obsZ,y0,tau,cov1,cov2){
+    # y0 is assumed y0/sd(y0)
+    # covs are assumed mean centered
+    y1 <- y0S+tau
+    Z <- sample(obsZ) ## complete_ra(N=N)
+    Y <- Z*y1 + (1-Z)*y0S
+    Ys <- scale(Y)
+    Zs <- scale(Z)
+    thelm <- lm(Ys~Zs*(cov1+cov2),singular.ok=FALSE)
+    results <- coeftest(thelm, vcov = vcovHC(thelm, type = "HC2"))
+    ## sd(Z) is always the same (here .5)
+    ## return(c(tau=tau,tauS=tau*sd(Zs)/sd(Ys), p=results["Zs",4]))
+    ##return(c(tau=tau, p=results["Zs",4]))
+    return(p=results["Zs",4])
+  }
+
+  theps<-replicate(nsims,powfn2(obsZ=theZ,y0=y0S,tau=thetau,cov1=healthMD,cov2=incomeMD))
+  stopifnot(any(!is.na(theps)))
+  return(mean(theps < .05))
+
+  return(theps)
+}
+
+powNfn(N=100,nsims=10,thetau=.5)
+
+
+possibleTaus <- seq(0,1,.1)
+possibleNs <- c(50,120,220)
+
+parms <- expand.grid(tau=possibleTaus,n=possibleNs)
+
+parms$pow <- apply(parms,1,function(x){ message(paste(parms,collapse=" ")); powNfn(N=x[[2]],nsims=1000,thetau=x[[1]]) })
+
+save(parms,file="parms.rda")
+```
+
