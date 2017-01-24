@@ -108,20 +108,22 @@ powNfn<- function(N,nsims,thetau,nblocks){
   set.seed(12345)
   blocks <- gl(nblocks,N/nblocks)
   stopifnot(length(blocks)==N)
-  sdhealth <- sd(health)
-  sdincome <- sd(income)
-  y0 <- health*(sdhealth) + income*(sdincome) + rnorm(n=N,mean=100,sd=2)
+  cov1 <- sample(x=1:3, size=N, replace=TRUE)
+  cov2 <- sample(x=1:5, size=N, replace=TRUE)
+  sdcov1 <- sd(cov1)
+  sdcov2 <- sd(cov2)
+  y0 <- cov1*(sdcov1) + cov2*(sdcov2) + rnorm(n=N,mean=100,sd=2)
   y0S <- y0/sd(y0)
   theZ <- block_ra(block_var=blocks) ## complete_ra(N=N)
-  ## healthMD <- health - mean(health)
-  ## incomeMD <- income - mean(income)
-  healthMDb <- health - ave(health,blocks)
-  incomeMDb <- income - ave(income,blocks)
+  ## cov1MD <- cov1 - mean(cov1)
+  ## cov2MD <- cov2 - mean(cov2)
+  cov1MDb <- cov1 - ave(cov1,blocks)
+  cov2MDb <- cov2 - ave(cov2,blocks)
+  y1 <- y0S+tau
 
-  powfn2 <- function(obsZ,y0,tau,cov1,cov2,blocks){
+  powfn2 <- function(obsZ,y1,y0,tau,cov1,cov2,blocks){
     # y0 is assumed y0/sd(y0)
     # covs are assumed mean centered
-    y1 <- y0S+tau
     ## Z <- sample(obsZ) ## complete_ra(N=N)
     Z <- unsplit(lapply(split(obsZ,blocks),sample),blocks)
     Y <- Z*y1 + (1-Z)*y0S
@@ -137,14 +139,14 @@ powNfn<- function(N,nsims,thetau,nblocks){
     return(p=results["Zs",4])
   }
 
-  theps<-replicate(nsims,powfn2(obsZ=theZ,y0=y0S,tau=thetau,cov1=healthMDb,cov2=incomeMDb,blocks=blocks))
+  theps<-replicate(nsims,powfn2(obsZ=theZ,y1=y1,y0=y0S,tau=thetau,cov1=cov1MDb,cov2=cov2MDb,blocks=blocks))
   stopifnot(any(!is.na(theps)))
   return(mean(theps < .05))
 
   return(theps)
 }
 
-powNfn(N=100,nsims=10,thetau=.5,nblocks=3)
+powNfn(N=100,nsims=10,thetau=.5,nblocks=3,cov1=health,cov2=income)
 
 
 possibleTaus <- seq(0,1,.1)
