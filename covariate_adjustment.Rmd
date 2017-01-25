@@ -147,22 +147,22 @@ powNfn<- function(N,nsims,thetau,nblocks){
 }
 
 ## This next should be about .05
-powNfn(N=50,nsims=1000,thetau=0,nblocks=3)
+powNfn(N=50,nsims=1000,thetau=0,nblocks=4)
 ## And this next should be about .05 too
-powNfn(N=100,nsims=1000,thetau=0,nblocks=3)
+powNfn(N=100,nsims=1000,thetau=0,nblocks=4)
 
 ## This should be larger than .05
-powNfn(N=50,nsims=1000,thetau=.5,nblocks=3)
+powNfn(N=50,nsims=1000,thetau=.5,nblocks=4)
 ## And this next should be yet larger
-powNfn(N=100,nsims=1000,thetau=.5,nblocks=3)
+powNfn(N=100,nsims=1000,thetau=.5,nblocks=4)
 
 possibleTaus <- seq(0,1,.1)
-possibleNs <- c(40,50,60,70,80)
+possibleNs <- c(60,70,80)
 
 parms <- expand.grid(tau=possibleTaus,n=possibleNs)
 
 system.time(
-parms$pow <- apply(parms,1,function(x){ message(paste(parms,collapse=" ")); powNfn(N=x[[2]],nsims=1000,thetau=x[[1]],nblocks=3) })
+parms$pow <- apply(parms,1,function(x){ message(paste(parms,collapse=" ")); powNfn(N=x[[2]],nsims=1000,thetau=x[[1]],nblocks=4) })
 )
 
 save(parms,file="parms.rda")
