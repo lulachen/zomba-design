@@ -119,7 +119,7 @@ powNfn<- function(N,nsims,thetau,nblocks){
   ## cov2MD <- cov2 - mean(cov2)
   cov1MDb <- cov1 - ave(cov1,blocks)
   cov2MDb <- cov2 - ave(cov2,blocks)
-  y1 <- y0S+tau
+  y1 <- y0S+thetau
 
   powfn2 <- function(obsZ,y1,y0,tau,cov1,cov2,blocks){
     # y0 is assumed y0/sd(y0)
@@ -146,15 +146,24 @@ powNfn<- function(N,nsims,thetau,nblocks){
   return(theps)
 }
 
-powNfn(N=100,nsims=10,thetau=.5,nblocks=3,cov1=health,cov2=income)
+## This next should be about .05
+powNfn(N=50,nsims=1000,thetau=0,nblocks=3)
+## And this next should be about .05 too
+powNfn(N=100,nsims=1000,thetau=0,nblocks=3)
 
+## This should be larger than .05
+powNfn(N=50,nsims=1000,thetau=.5,nblocks=3)
+## And this next should be yet larger
+powNfn(N=100,nsims=1000,thetau=.5,nblocks=3)
 
 possibleTaus <- seq(0,1,.1)
-possibleNs <- c(50,120,220)
+possibleNs <- c(40,50,60)
 
 parms <- expand.grid(tau=possibleTaus,n=possibleNs)
 
-parms$pow <- apply(parms,1,function(x){ message(paste(parms,collapse=" ")); powNfn(N=x[[2]],nsims=1000,thetau=x[[1]]) })
+system.time(
+parms$pow <- apply(parms,1,function(x){ message(paste(parms,collapse=" ")); powNfn(N=x[[2]],nsims=1000,thetau=x[[1]],nblocks=3) })
+)
 
 save(parms,file="parms.rda")
 ```
