@@ -5,7 +5,7 @@ date: "1/22/2017"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
+```{r knitrsetup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
@@ -20,7 +20,7 @@ A final concern raised by the review committee concerns statistical power. You n
 Here we focus only on two treatments, presuming a test of the relationship between treatment assignment to the common metaketa arm and an alternative arm.
 
 
-```{r setup }
+```{r librarysetup }
 rm(list=ls())
 #install.packages("randomizr")
 library(randomizr)    # randomizr package for complete random assignment
