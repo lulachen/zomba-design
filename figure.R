@@ -1,4 +1,4 @@
-setwd("C:/Users/Nuole/Dropbox/metaketa_taxation/from_zomba-design")
+#setwd("C:/Users/Nuole/Dropbox/metaketa_taxation/from_zomba-design")
 
 load("parms.rda")
 View(parms)
