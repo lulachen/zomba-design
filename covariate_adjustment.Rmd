@@ -28,9 +28,9 @@ library(sandwich)
 library(lmtest)
 ```
 
-Build up the power analysis function piece by piece
-```{r step1}
+```{r step1, eval=FALSE, include=FALSE}
 ## Base code
+##Build up the power analysis function piece by piece
 N <- 45
 numblocks <- 3
 blocks <- gl(3,N/3)
