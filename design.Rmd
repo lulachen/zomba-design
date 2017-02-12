@@ -1,0 +1,34 @@
+
+
+```{r eval=FALSE)
+source("https://declaredesign.org/install.R")
+
+```
+
+
+```{r}
+library(DeclarDesign)
+
+potential_outcomes <- declare_potential_outcomes(condition_names = c("control", 
+    "treatment1", "information"), formula = Y ~ 0.01 + 0.2 * (Z == "Z1") + 
+    0.1 * income)
+
+potential_outcomes <- declare_potential_outcomes(
+  condition_names = c("control", "treatment"),
+  formula = 
+    Y ~ .1*(Z == "treatment")*income_bracket + noise)
+
+sampling     <- declare_sampling(n = 100)
+
+estimand_ATE <- declare_estimand(estimand_text = "mean(Y_Z_treatment - Y_Z_control)", potential_outcomes = potential_outcomes)
+
+assignment   <- declare_assignment(
+  m = 50, potential_outcomes = potential_outcomes)
+
+estimator    <- declare_estimator(
+  formula   = Y ~ Z, 
+  estimates = difference_in_means, 
+  estimand  = estimand_ATE, 
+  labels    = "Difference-in-Means (Treatment-Control)")
+
+```
